@@ -18,8 +18,10 @@ int main()
 {
     printf("This program print hello world with asm func:\n");
 
-    // ERROR_HANDLE(printme("%c%c%c%c%c%c%c\n", '1', '2', '3','4','5','6','7','8'));
-    ERROR_HANDLE(printme("%d %c %d\n", -__INT_MAX__-1, 'c', __INT_MAX__));
+    // ERROR_HANDLE(printme("0x%x\n", 0x64));
+
+    ERROR_HANDLE(printme("0b%b;\n%c; %d; 0b%b; 0o%o; 0x%x;\n", 
+                          -__LONG_MAX__, 'c', __LONG_MAX__, 3, 16, 0xBADDEDD1l));
 
     return EXIT_SUCCESS;
 }

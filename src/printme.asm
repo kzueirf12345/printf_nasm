@@ -1,7 +1,19 @@
 section .data
 
-MAX_REG_VAL     equ 0xFFFFFFFF
-END_STR         equ 0x0
+MAX_REG_VAL                 equ 0xFFFFFFFF
+END_STR                     equ 0x0
+
+STDOUT_DESCRIPTOR           equ 1
+
+;;; syscall funcs
+SYSCALL_NUM_PRINT_STRING    equ 0x1
+
+;;; ERRORS
+ERROR_INCORRECT_SPECIFER    equ 1
+ERROR_SYSCALL               equ 2
+
+
+HexTable                    db "0123456789ABCDEF"
 
 ;;; =========================================FUNCS==================================================
 section .text
@@ -31,7 +43,7 @@ printme:
     mov rsi, rdi                            ; rsi - addr format string 
     call printme_trully
 
-    pop rcx                                 ; r9 - ret addr
+    pop rcx                                 ; rcx - ret addr
     add rsp, 5*8                            ; skip pushed args
     push rcx                                ; push ret addr
 ret
@@ -69,15 +81,19 @@ jmp [rcx]
 
 .SpeciferTable:
 dq .SpeciferNothingPhone
-dq .SpeciferNothingPhone
+dq .SpeciferB
 dq .SpeciferC
 dq .SpeciferD
+dq ('o'-'d'-1) DUP (.SpeciferNothingPhone)
+dq .SpeciferO
+dq ('x'-'o'-1) DUP (.SpeciferNothingPhone)
+dq .SpeciferX
 
 .NoSpecifer:
 
-    mov rdx, 1                              ; count symbols for print
-    mov rdi, 1                              ; descriptor - stdout
-    mov rax, 0x1                            ; syscall print string
+    mov rdx, 1                              ; rdx - count symbols for print
+    mov rdi, STDOUT_DESCRIPTOR
+    mov rax, SYSCALL_NUM_PRINT_STRING
     syscall                                 ; print sym
     cmp rax, rdx                            ; check syscall error
 jne .SyscallError
@@ -86,7 +102,7 @@ jne .SyscallError
 jmp .HandleString
 
 .ExitSuccess:
-    xor rax, rax                            ; exit code
+    xor rax, rax                            ; NO ERROR
 .Exit:
 ret
 
@@ -95,9 +111,9 @@ ret
     push rsi                                ; save rsi
 
     mov rsi, r8                             ; rsi - addr char for print
-    mov rdx, 1                              ; count symbols for print
-    mov rdi, 1                              ; descriptor - stdout
-    mov rax, 0x1                            ; syscall print string
+    mov rdx, 1                              ; rdx - count symbols for print
+    mov rdi, STDOUT_DESCRIPTOR
+    mov rax, SYSCALL_NUM_PRINT_STRING
     syscall                                 ; print char
     cmp rax, rdx                            ; check syscall error
 jne .SyscallError
@@ -110,9 +126,51 @@ jmp .HandleString
 .SpeciferD:
     push rsi                                ; save rsi
 
-    mov eax, [r8]                           ; eax - num for print
-    mov r11d, 10                            ; r11d - base
-    call print_int
+    mov rax, [r8]                           ; eax - num for print
+    mov r11, 10                             ; r11 - base
+    call print_num
+    test rax, rax                           ; check error
+jne .Exit
+
+    add r8, 8                               ; next arg
+    pop rsi                                 ; save rsi
+    inc rsi                                 ; next symbol
+jmp .HandleString
+
+.SpeciferO:
+    push rsi                                ; save rsi
+
+    mov rax, [r8]                           ; eax - num for print
+    mov r11, 8                              ; r11 - base
+    call print_num
+    test rax, rax                           ; check error
+jne .Exit
+
+    add r8, 8                               ; next arg
+    pop rsi                                 ; save rsi
+    inc rsi                                 ; next symbol
+jmp .HandleString
+
+.SpeciferB:
+    push rsi                                ; save rsi
+
+    mov rax, [r8]                           ; eax - num for print
+    mov r11, 2                              ; r11 - base
+    call print_num
+    test rax, rax                           ; check error
+jne .Exit
+
+    add r8, 8                               ; next arg
+    pop rsi                                 ; save rsi
+    inc rsi                                 ; next symbol
+jmp .HandleString
+    
+.SpeciferX:
+    push rsi                                ; save rsi
+
+    mov rax, [r8]                           ; eax - num for print
+    mov r11, 16                             ; r11 - base
+    call print_num
     test rax, rax                           ; check error
 jne .Exit
 
@@ -123,28 +181,28 @@ jmp .HandleString
     
 
 .SpeciferNothingPhone:
-    mov rax, 1
+    mov rax, ERROR_INCORRECT_SPECIFER
 jmp .Exit
 
 .SyscallError:
-    mov rax, 2
+    mov rax, ERROR_SYSCALL
 jmp .Exit
 
 ;;; ---------------------------------------------
-;;; Descript:   print int
-;;; Entry:      eax  = num
-;;;             r11d = base
+;;; Descript:   print num
+;;; Entry:      rax  = num
+;;;             r11 = base
 ;;; Exit:       rax = exit code
 ;;;             rdx = string size
 ;;; Destroy: 	rcx, rdx, rsi, rdi, r11
 ;;; ---------------------------------------------
-print_int:
-    mov edi, eax                            ; edi - num
+print_num:
+    mov rdi, rax                            ; rdi - num
 
     xor rcx, rcx                            ; rcx - string size
 
 ;;; check to zero and negative
-    test eax, eax
+    test rax, rax
 js .Negative
 jne .Convertion
 ;;; push '0' in stack
@@ -154,22 +212,22 @@ jne .Convertion
 jmp .Print
 
 .Negative:
-    neg eax                                 ; num = -num
+    neg rax                                 ; num = -num
 
 .Convertion:
-    xor edx, edx                            ; edx (upper part) = 0
-    div r11d                                ; [eax, edx] = edx:eax / r11d
-    add dl, '0'                             ; edx += "0"
+    xor rdx, rdx                            ; rdx = 0 (in particular edx)
+    div r11                                 ; [rax, rdx] = rdx:rax / r11
+    mov dl, byte [HexTable + rdx]           ; dl = HexTable[dl]
 ;;; push dl (digit) in stack
     dec rsp
     mov byte [rsp], dl
 
     inc rcx                                 ; ++size
-    test eax, eax
+    test rax, rax
 jne .Convertion
 
 ;;; check to negative (add '-')
-    test edi, edi
+    test rdi, rdi
 jns .Print
 ;;; push '-' in stack
     dec rsp
@@ -179,14 +237,14 @@ jns .Print
 .Print:
     mov rdx, rcx                            ; rdx - size string
     mov rsi, rsp                            ; rsi - addr string for print
-    mov rdi, 1
-    mov rax, 0x1
+    mov rdi, STDOUT_DESCRIPTOR
+    mov rax, SYSCALL_NUM_PRINT_STRING
     syscall                                 ; print num string
     cmp rdx, rax                            ; check syscall error
 je .ExitSuccess
-    mov rax, 2
+    mov rax, ERROR_SYSCALL
 
 .ExitSuccess:
-    add rsp, rdx
-    xor rax, rax
+    add rsp, rdx                            ; clean stack (rdx - size string)
+    xor rax, rax                            ; NO ERROR
 ret
