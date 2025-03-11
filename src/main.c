@@ -19,6 +19,7 @@ int main()
     printf("This program print hello world with asm func:\n");
 
     ERROR_HANDLE(printme("%c%c%c%c%c%c%c\n", '1', '2', '3','4','5','6','7','8'));
+    ERROR_HANDLE(printme("!%c%c%c%c%c%c%c\n", '1', '2', '3','4','5','6','7','8'));
 
     return EXIT_SUCCESS;
 }

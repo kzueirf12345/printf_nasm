@@ -13,41 +13,42 @@ global printme
 ;;; Entry:      rdi = address string
 ;;;             next regs and stack - args
 ;;; Exit:       rax = exit code
-;;; Destroy: 	rax
+;;; Destroy:
 ;;; ---------------------------------------------
 printme:
-;;; Prologue
-    mov r10, rbp
-    mov rbp, rsp
-
+    pop rax                                 ; rax - ret addr
 ;;; push args in stack
     push r9 
     push r8 
     push rcx 
     push rdx 
     push rsi 
-    push rdi
+    
+    mov r8, rsp                             ; r8 - addr start args
 
+    push rax                                ; push ret addr
+
+    mov rsi, rdi                            ; rsi - addr format string 
     call printme_trully
 
-;;; Epilogue
-.Exit:
-    mov rsp, rbp
-    mov rbp, r10
+    pop r9                                  ; r9 - ret addr
+    mov rsp, r8                             ; return correct rsp
+    push r9                                 ; push ret addr
 ret
 
 ;;; ---------------------------------------------
-;;; Descript:   print string with \0 in end on concole
-;;; Entry:      STACK: string addr, args
+;;; Descript:   print format string with \0 in end on concole
+;;;             Specifers: %c - char
+;;; Entry:      r8 = addr start args
+;;;             rsi = format string
 ;;; Exit:       rax = exit code
 ;;;             0 - success
 ;;;             1 - error % specifer
+;;;             2 - syscall error
+;;;             r8 = addr after last arg
 ;;; Destroy: 	rax, rcx, rdx, rsi, rdi, r8, r9
 ;;; ---------------------------------------------
 printme_trully:
-    pop r8                                 ; save ret addr
-    pop rsi                                 ; rsi - string addr
-
     mov rdx, 1                              ; count symbols for print
     mov rax, 0x1                            ; syscall print string
     mov rdi, 1                              ; descriptor - stdout
@@ -74,7 +75,7 @@ dq .SpeciferNothingPhone
 dq .SpeciferNothingPhone
 dq .SpeciferC
 
-.NoSpecifer
+.NoSpecifer:
 
     push rax                                ; save rax
     syscall                                 ; print sym
@@ -85,25 +86,24 @@ jne .SyscallError
     inc rsi                                 ; next sym
 jmp .HandleString
 
-.ExitSuccess
+.ExitSuccess:
     xor rax, rax                            ; exit code
 .Exit:
-    push r8                                ; save ret addr
 ret
 
 
 .SpeciferC:
-    mov r9, rsi                            ; save rsi
+    push rsi                                ; save rsi
 
-    mov rsi, rsp                            ; rsi - addr char for print
+    mov rsi, r8                             ; rsi - addr char for print
     push rax                                ; save rax
     syscall                                 ; print char
     cmp rax, rdx                            ; check syscall error
 jne .SyscallError
     pop rax                                 ; save rax
-    add rsp, 8                              ; next arg
 
-    mov rsi, r9                            ; save rsi
+    add r8, 8                               ; next arg
+    pop rsi                                 ; save rsi
     inc rsi                                 ; next symbol
 jmp .HandleString
 
