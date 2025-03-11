@@ -1,10 +1,11 @@
-.PHONY: all build clean rebuild start
+.PHONY: all build clean rebuild start compile_asm compile_c
 
 PROJECT_NAME = printf_nasm
 
 BUILD_DIR = ./build
 SRC_DIR = ./src
-COMPILER = nasm
+ASM_COMPILER = nasm
+C_COMPILER = gcc
 LINKER = ld
 SYSTEM = elf64
 
@@ -13,27 +14,36 @@ FLAGS += $(ADD_FLAGS)
 DIRS = 
 BUILD_DIRS = $(DIRS:%=$(BUILD_DIR)/%)
 
-SOURCES = main.asm
+SOURCES_ASM = printme.asm
+SOURCES_C	= main.c
 
-SOURCES_REL_PATH = $(SOURCES:%=./$(SRC_DIR)/%)
-OBJECTS_REL_PATH = $(SOURCES:%.asm=$(BUILD_DIR)/%.o)
-LISTINGS_REL_PATH = $(SOURCES:%.asm=$(BUILD_DIR)/%.lst)
+SOURCES_ASM_REL_PATH = $(SOURCES_ASM:%=$(SRC_DIR)/%)
+OBJECTS_ASM_REL_PATH = $(SOURCES_ASM:%.asm=$(BUILD_DIR)/%.o)
+LISTINGS_ASM_REL_PATH = $(SOURCES_ASM:%.asm=$(BUILD_DIR)/%.lst)
+
+SOURCES_C_REL_PATH = $(SOURCES_C:%=./$(SRC_DIR)/%)
+OBJECTS_C_REL_PATH = $(SOURCES_C:%.c=$(BUILD_DIR)/%.o)
 
 all: build start
+
+rebuild: clean_all build
 
 start: 
 	./$(PROJECT_NAME).out $(OPTS)
 
 build: $(PROJECT_NAME).out
 
-rebuild: clean_all build
 
 
-$(PROJECT_NAME).out: $(OBJECTS_REL_PATH)
-	$(LINKER) $(FLAGS) -o $@ $^
+$(PROJECT_NAME).out: compile_asm compile_c
+	$(C_COMPILER) $(FLAGS) -o $@ $(OBJECTS_C_REL_PATH) $(OBJECTS_ASM_REL_PATH)
 
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.asm | ./$(BUILD_DIR)/ $(BUILD_DIRS)
-	nasm $(FLAGS) -f $(SYSTEM) -l $(LISTINGS_REL_PATH) -o $@ $^
+compile_asm: $(SOURCES_ASM_REL_PATH) | ./$(BUILD_DIR)/ $(BUILD_DIRS)
+	$(ASM_COMPILER) $(FLAGS) -f $(SYSTEM) -l $(LISTINGS_ASM_REL_PATH) -o $(OBJECTS_ASM_REL_PATH) $(SOURCES_ASM_REL_PATH)
+
+compile_c: $(SOURCES_C_REL_PATH) | ./$(BUILD_DIR)/ $(BUILD_DIRS)
+	$(C_COMPILER) $(FLAGS) -o $(OBJECTS_C_REL_PATH) -c $(SOURCES_C_REL_PATH)
+	
 
 $(BUILD_DIRS):
 	mkdir $@
