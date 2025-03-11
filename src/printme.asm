@@ -123,62 +123,35 @@ jne .SyscallError
     inc rsi                                 ; next symbol
 jmp .HandleString
 
-.SpeciferD:
-    push rsi                                ; save rsi
 
-    mov rax, [r8]                           ; eax - num for print
-    mov r11, 10                             ; r11 - base
-    call print_num
+.SpeciferB:
+    mov r11, 2                              ; r11 - base
+    call specifer_num
     test rax, rax                           ; check error
 jne .Exit
-
-    add r8, 8                               ; next arg
-    pop rsi                                 ; save rsi
-    inc rsi                                 ; next symbol
+jmp .HandleString
+    
+.SpeciferD:
+    mov r11, 10                              ; r11 - base
+    call specifer_num
+    test rax, rax                           ; check error
+jne .Exit
 jmp .HandleString
 
 .SpeciferO:
-    push rsi                                ; save rsi
-
-    mov rax, [r8]                           ; eax - num for print
-    mov r11, 8                              ; r11 - base
-    call print_num
+    mov r11, 18                             ; r11 - base
+    call specifer_num
     test rax, rax                           ; check error
 jne .Exit
-
-    add r8, 8                               ; next arg
-    pop rsi                                 ; save rsi
-    inc rsi                                 ; next symbol
 jmp .HandleString
 
-.SpeciferB:
-    push rsi                                ; save rsi
-
-    mov rax, [r8]                           ; eax - num for print
-    mov r11, 2                              ; r11 - base
-    call print_num
-    test rax, rax                           ; check error
-jne .Exit
-
-    add r8, 8                               ; next arg
-    pop rsi                                 ; save rsi
-    inc rsi                                 ; next symbol
-jmp .HandleString
-    
 .SpeciferX:
-    push rsi                                ; save rsi
-
-    mov rax, [r8]                           ; eax - num for print
     mov r11, 16                             ; r11 - base
-    call print_num
+    call specifer_num
     test rax, rax                           ; check error
 jne .Exit
-
-    add r8, 8                               ; next arg
-    pop rsi                                 ; save rsi
-    inc rsi                                 ; next symbol
 jmp .HandleString
-    
+
 
 .SpeciferNothingPhone:
     mov rax, ERROR_INCORRECT_SPECIFER
@@ -187,6 +160,28 @@ jmp .Exit
 .SyscallError:
     mov rax, ERROR_SYSCALL
 jmp .Exit
+
+;;; ---------------------------------------------
+;;; Descript:   print num
+;;; Entry:      r11 = base
+;;;             r8  = addr print num
+;;;             rsi = cur addr in format string
+;;; Exit:       rax = exit code
+;;;             rdx = string size
+;;;             r8  = next arg
+;;;             rsi = next symbol
+;;; Destroy: 	rcx, rdx, rdi, r11
+;;; ---------------------------------------------
+specifer_num:
+    push rsi                                ; save rsi
+
+    mov rax, [r8]                           ; rax - num for print
+    call print_num
+
+    add r8, 8                               ; next arg
+    pop rsi                                 ; save rsi
+    inc rsi                                 ; next symbol
+ret
 
 ;;; ---------------------------------------------
 ;;; Descript:   print num
