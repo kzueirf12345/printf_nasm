@@ -13,7 +13,7 @@ global printme
 ;;; Entry:      rdi = address string
 ;;;             next regs and stack - args
 ;;; Exit:       rax = exit code
-;;; Destroy:
+;;; Destroy:    rcx, rdx, rsi, rdi, r8, r9
 ;;; ---------------------------------------------
 printme:
     pop rax                                 ; rax - ret addr
@@ -32,7 +32,7 @@ printme:
     call printme_trully
 
     pop r9                                  ; r9 - ret addr
-    mov rsp, r8                             ; return correct rsp
+    add rsp, 5*8                            ; skip pushed args
     push r9                                 ; push ret addr
 ret
 
@@ -46,11 +46,10 @@ ret
 ;;;             1 - error % specifer
 ;;;             2 - syscall error
 ;;;             r8 = addr after last arg
-;;; Destroy: 	rax, rcx, rdx, rsi, rdi, r8, r9
+;;; Destroy: 	rcx, rdx, rsi, rdi, r9
 ;;; ---------------------------------------------
 printme_trully:
     mov rdx, 1                              ; count symbols for print
-    mov rax, 0x1                            ; syscall print string
     mov rdi, 1                              ; descriptor - stdout
 
 .HandleString:
@@ -77,11 +76,10 @@ dq .SpeciferC
 
 .NoSpecifer:
 
-    push rax                                ; save rax
+    mov rax, 0x1                            ; syscall print string
     syscall                                 ; print sym
     cmp rax, rdx                            ; check syscall error
 jne .SyscallError
-    pop rax                                 ; save rax
 
     inc rsi                                 ; next sym
 jmp .HandleString
@@ -96,11 +94,10 @@ ret
     push rsi                                ; save rsi
 
     mov rsi, r8                             ; rsi - addr char for print
-    push rax                                ; save rax
+    mov rax, 0x1                            ; syscall print string
     syscall                                 ; print char
     cmp rax, rdx                            ; check syscall error
 jne .SyscallError
-    pop rax                                 ; save rax
 
     add r8, 8                               ; next arg
     pop rsi                                 ; save rsi
