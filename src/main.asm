@@ -25,25 +25,26 @@ _start:
 ;;; ---------------------------------------------
 printf:
 
-;;; calculate string size
-    mov rdi, rsi                            ; rdi - string address for find
-    mov rcx, MAX_REG_VAL                    ; rdx - counter string size
-    mov al, END_STR                         ; al - end string symbol (\0)
-    repne scasb
-
-;;; rdx - string size = MAX_REG_VAL - rcx
-    mov rdx, MAX_REG_VAL
-    sub rdx, rcx
-
+    mov rdx, 1                              ; count symbols for print
     mov rax, 0x1                            ; syscall print string
     mov rdi, 1                              ; descriptor - stdout
-    syscall
+
+.HandleString:
+    cmp byte [rsi], END_STR
+je .Exit
+
+    syscall                                 ; print string
+
+    inc rsi
+jmp .HandleString
+
+.Exit:
 ret
 
 ;;; =========================================DATA===================================================
 section .data
 
-Vmsg     db "Hello, world!", 0xa, END_STR
+Vmsg     db "Hello, world!", 0xA, "kek", 0xA, END_STR
 Vmsg_len  equ $ - Vmsg
 
 section .bss
