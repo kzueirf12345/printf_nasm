@@ -74,13 +74,14 @@ jne .NoSpecifer
 ;;; rcx - addr to handle cur specifer = ([rsi]-'a')*8 + *SpeciferTable
     xor rcx, rcx
     mov cl, byte [rsi]
-    sub rcx, 'a'
+    cmp rcx, 256
+jge .SpeciferNothingPhone
     shl rcx, 3
     add rcx, .SpeciferTable
 jmp [rcx]
 
 .SpeciferTable:
-dq .SpeciferNothingPhone
+dq ('a'+1) DUP (.SpeciferNothingPhone)
 dq .SpeciferB
 dq .SpeciferC
 dq .SpeciferD
@@ -88,6 +89,7 @@ dq ('o'-'d'-1) DUP (.SpeciferNothingPhone)
 dq .SpeciferO
 dq ('x'-'o'-1) DUP (.SpeciferNothingPhone)
 dq .SpeciferX
+dq (256-'x'-1) DUP (.SpeciferNothingPhone)
 
 .NoSpecifer:
 
@@ -132,14 +134,14 @@ jne .Exit
 jmp .HandleString
     
 .SpeciferD:
-    mov r11, 10                              ; r11 - base
+    mov r11, 10                             ; r11 - base
     call specifer_num
     test rax, rax                           ; check error
 jne .Exit
 jmp .HandleString
 
 .SpeciferO:
-    mov r11, 18                             ; r11 - base
+    mov r11, 8                              ; r11 - base
     call specifer_num
     test rax, rax                           ; check error
 jne .Exit
