@@ -20,7 +20,7 @@ int main()
 
     // ERROR_HANDLE(printme("0x%😇\n", 0x64));
 
-    ERROR_HANDLE(printme("0b%b;\n%c; %d; 0b%b; 0o%o; 0x%x;\n", 
+    ERROR_HANDLE(printme("0b%b;\n%c; %d; 0b%b; 0o%o; 0x%x; %%%%%%\n", 
                           -__LONG_MAX__+100, 'c', __LONG_MAX__, 3, 16, 0xBADDEDD1l));
 
     return EXIT_SUCCESS;
