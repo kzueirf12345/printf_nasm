@@ -93,9 +93,11 @@ dq .SpeciferC
 dq .SpeciferD
 dq ('o'-'d'-1)  DUP (.SpeciferNothingPhone)
 dq .SpeciferO
-dq ('x'-'o'-1)  DUP (.SpeciferNothingPhone)
+dq ('s'-'o'-1)  DUP (.SpeciferNothingPhone)
+dq .SpeciferS
+dq ('x'-'s'-1)  DUP (.SpeciferNothingPhone)
 dq .SpeciferX
-dq (256-'x'-1)  DUP (.SpeciferNothingPhone)
+dq (256-'x')    DUP (.SpeciferNothingPhone)
 
 .NoSpecifer:
 
@@ -127,6 +129,18 @@ jne .Exit
     inc rsi                                 ; next symbol
 jmp .HandleString
 
+.SpeciferS:
+    push rsi                                ; save rsi
+
+    mov rdi, [r8]                           ; rdi - addr string for print
+    call HandleString
+    test rax, rax                           ; check error
+jne .Exit
+
+    add r8, 8                               ; next arg
+    pop rsi                                 ; save rsi
+    inc rsi                                 ; next symbol
+jmp .HandleString
 
 .SpeciferB:
     mov r11, 2                              ; r11 - base
@@ -327,6 +341,34 @@ jns .Print
     mov rsi, rsp                            ; rsi - addr string for print
     call PrintData
     add rsp, rdx                            ; clean stack (rdx - size string)
+    test rax, rax                           ; check error
+jne .Exit
+
+.ExitSuccess:
+    xor rax, rax                            ; NO ERROR
+.Exit:
+ret
+
+;;; ---------------------------------------------
+;;; Descript:   print string (0 in end)
+;;; Entry:      rdi = string addr
+;;; Exit:       rax = exit code
+;;;             r10 = addr after last buffer elem
+;;; Destroy: 	rcx, rdx, rsi, rdi, r11
+;;; ---------------------------------------------
+HandleString:
+    push rdi                                ; save begin string addr
+;;; count string size
+    xor al, al                              ; al - end string symbol (0)
+    mov rcx, MAX_REG_VAL                    ; max string size
+    repne scasb
+
+    pop rsi                                 ; rsi - begin string addr
+;;; rdx = rdi-rsi-1 - string size
+    mov rdx, rdi
+    sub rdx, rsi
+    dec rdx
+    call PrintData
     test rax, rax                           ; check error
 jne .Exit
 

@@ -18,12 +18,14 @@ int main()
 {
     printf("This program print smth with asm func:\n");
 
-    // ERROR_HANDLE(printme("1234\n", 
-    //     -__LONG_MAX__+100, 'c', __LONG_MAX__, 3, 16, 0xBADDEDD1l));
 
 
-    ERROR_HANDLE(printme("0b%b;\n%c; %d; 0b%b; 0o%o; 0x%x; %%%%%%\n", 
-                          -__LONG_MAX__+100, 'c', __LONG_MAX__, 3, 16, 0xBADDEDD1l));
+    ERROR_HANDLE(printme("0b%b;\n"
+                          "%c; %d; 0b%b; 0o%o; 0x%x; %%%%%%;\n"
+                          "У %s small penis;\n", 
+                         -__LONG_MAX__+100, 'c', __LONG_MAX__, 3, 16, 0xBADDEDD1l,
+                         "Стёпы Гизунова")
+    );
 
     return EXIT_SUCCESS;
 }
