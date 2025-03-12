@@ -15,6 +15,11 @@ ERROR_SYSCALL               equ 2
 
 HexTable                    db "0123456789ABCDEF"
 
+BUFFER_SIZE                 equ 100
+Buffer:                     db (BUFFER_SIZE) DUP (0)
+BUFFER_END                  equ $
+;;; r10 - cur addr after last buffer elem
+
 ;;; =========================================FUNCS==================================================
 section .text
 
@@ -25,7 +30,7 @@ global printme
 ;;; Entry:      rdi = address string
 ;;;             next regs and stack - args
 ;;; Exit:       rax = exit code
-;;; Destroy:    rcx, rdx, rsi, rdi, r8, r11
+;;; Destroy:    rcx, rdx, rsi, rdi, r8, r10, r11
 ;;; ---------------------------------------------
 printme:
     pop rax                                 ; rax - ret addr
@@ -41,7 +46,7 @@ printme:
     push rax                                ; push ret addr
 
     mov rsi, rdi                            ; rsi - addr format string 
-    call printme_trully
+    call PrintmeTrully
 
     pop rcx                                 ; rcx - ret addr
     add rsp, 5*8                            ; skip pushed args
@@ -58,9 +63,10 @@ ret
 ;;;             1 - error % specifer
 ;;;             2 - syscall error
 ;;;             r8 = addr after last arg
-;;; Destroy: 	rcx, rdx, rsi, rdi, r11
+;;; Destroy: 	rcx, rdx, rsi, rdi, r10, r11
 ;;; ---------------------------------------------
-printme_trully:
+PrintmeTrully:
+    mov r10, Buffer                         ; r10 - cur addr after last buffer elem (begin)
 
 .HandleString:
     cmp byte [rsi], END_STR                 ; check end string
@@ -94,17 +100,15 @@ dq (256-'x'-1)  DUP (.SpeciferNothingPhone)
 .NoSpecifer:
 
     mov rdx, 1                              ; rdx - count symbols for print
-    mov rdi, STDOUT_DESCRIPTOR
-    mov rax, SYSCALL_NUM_PRINT_STRING
-    syscall                                 ; print sym
-    cmp rax, rdx                            ; check syscall error
-jne .SyscallError
+    call PrintData
+    test rax, rax                           ; check error
+jne .Exit
 
-    inc rsi                                 ; next sym
+    ; inc rsi                                 ; next sym
 jmp .HandleString
 
 .ExitSuccess:
-    xor rax, rax                            ; NO ERROR
+    call PrintBuffer
 .Exit:
 ret
 
@@ -114,11 +118,9 @@ ret
 
     mov rsi, r8                             ; rsi - addr char for print
     mov rdx, 1                              ; rdx - count symbols for print
-    mov rdi, STDOUT_DESCRIPTOR
-    mov rax, SYSCALL_NUM_PRINT_STRING
-    syscall                                 ; print char
-    cmp rax, rdx                            ; check syscall error
-jne .SyscallError
+    call PrintData
+    test rax, rax                           ; check error
+jne .Exit
 
     add r8, 8                               ; next arg
     pop rsi                                 ; save rsi
@@ -128,28 +130,28 @@ jmp .HandleString
 
 .SpeciferB:
     mov r11, 2                              ; r11 - base
-    call specifer_num
+    call SpeciferNum
     test rax, rax                           ; check error
 jne .Exit
 jmp .HandleString
     
 .SpeciferD:
     mov r11, 10                             ; r11 - base
-    call specifer_num
+    call SpeciferNum
     test rax, rax                           ; check error
 jne .Exit
 jmp .HandleString
 
 .SpeciferO:
     mov r11, 8                              ; r11 - base
-    call specifer_num
+    call SpeciferNum
     test rax, rax                           ; check error
 jne .Exit
 jmp .HandleString
 
 .SpeciferX:
     mov r11, 16                             ; r11 - base
-    call specifer_num
+    call SpeciferNum
     test rax, rax                           ; check error
 jne .Exit
 jmp .HandleString
@@ -164,6 +166,92 @@ jmp .Exit
 jmp .Exit
 
 ;;; ---------------------------------------------
+;;; Descript:   push symbols in buffer (print if overflow)
+;;; Entry:      rsi = start symbols arr addr
+;;;             rdx = count symbols
+;;;             r10 = addr after last buffer elem
+;;; Exit:       rax = exit code
+;;;             r10 = addr after last buffer elem
+;;;             rsi = old_rsi + rdx
+;;; Destroy: 	rcx, rsi, rdi, r11
+;;; ---------------------------------------------
+PrintData:
+    mov rax, r10                            ; rax - addr after last buffer elem
+;;; r10+rdx >? BUFFER_END
+    add r10, rdx
+    cmp r10, BUFFER_END
+jg .NoUseBuffer      
+
+    mov rdi, rax                            ; rdi - dest addr in buffer
+    mov rcx, rdx                            ; rcx - count moveable syms
+    rep movsb                               ; mov rcx syms from rsi to buffer
+
+    mov r10, rdi                            ; r10 - new addr after last buffer elem
+jmp .ExitSuccess
+
+.NoUseBuffer:
+
+    cmp rax, Buffer                         ; check to empty buffer
+je .EmptyBuffer
+
+    push rdx                                ; save rdx
+    push rsi                                ; save rsi
+
+    mov r10, rax                            ; r10 - addr after last buffer elem
+    call PrintBuffer
+    test rax, rax                           ; check error
+jne .Exit
+
+    pop rsi                                 ; save rsi - addr from print
+    pop rdx                                 ; save rdx - count symbols for print
+.EmptyBuffer:
+    mov rax, SYSCALL_NUM_PRINT_STRING
+    mov rdi, STDOUT_DESCRIPTOR
+    syscall                                 ; print rdx symbols in rsi
+    cmp rdx, rax                            ; check syscall error
+jne .SyscallError
+
+    add rsi, rdx                            ; update rsi
+.ExitSuccess:
+    xor rax, rax                            ; NO ERROR
+.Exit:
+ret
+
+
+.SyscallError:
+    mov rax, ERROR_SYSCALL
+jmp .Exit
+
+;;; ---------------------------------------------
+;;; Descript:   print buffer and clear him
+;;; Entry:      r10 = addr after last buffer elem
+;;; Exit:       rax = exit code
+;;;             r10 = buffer start addr
+;;; Destroy: 	rcx, rdx, rsi, rdi, r11
+;;; ---------------------------------------------
+PrintBuffer:
+    mov rdx, r10                            ; rdx=r10-&Buffer - count symbols in buffer
+    sub rdx, Buffer
+    mov rsi, Buffer                         ; rsi - buffer addr
+    mov rax, SYSCALL_NUM_PRINT_STRING
+    mov rdi, STDOUT_DESCRIPTOR
+    syscall                                 ; print symbols in buffer
+    cmp rdx, rax                            ; check syscall error
+jne .SyscallError
+
+    mov r10, Buffer                         ; r10 - new addr after last buffer elem (begin)
+
+.ExitSuccess:
+    xor rax, rax
+.Exit:
+ret
+
+.SyscallError:
+    mov rax, ERROR_SYSCALL
+jmp .Exit
+
+
+;;; ---------------------------------------------
 ;;; Descript:   print num
 ;;; Entry:      r11 = base
 ;;;             r8  = addr print num
@@ -172,13 +260,14 @@ jmp .Exit
 ;;;             rdx = string size
 ;;;             r8  = next arg
 ;;;             rsi = next symbol
+;;;             r10 = addr after last buffer elem
 ;;; Destroy: 	rcx, rdx, rdi, r11
 ;;; ---------------------------------------------
-specifer_num:
+SpeciferNum:
     push rsi                                ; save rsi
 
     mov rax, [r8]                           ; rax - num for print
-    call print_num
+    call HandleNum
 
     add r8, 8                               ; next arg
     pop rsi                                 ; save rsi
@@ -191,9 +280,10 @@ ret
 ;;;             r11 = base
 ;;; Exit:       rax = exit code
 ;;;             rdx = string size
+;;;             r10 = addr after last buffer elem
 ;;; Destroy: 	rcx, rdx, rsi, rdi, r11
 ;;; ---------------------------------------------
-print_num:
+HandleNum:
     mov rdi, rax                            ; rdi - num
 
     xor rcx, rcx                            ; rcx - string size
@@ -232,16 +322,15 @@ jns .Print
     inc rcx                                 ; ++size
 
 .Print:
+
     mov rdx, rcx                            ; rdx - size string
     mov rsi, rsp                            ; rsi - addr string for print
-    mov rdi, STDOUT_DESCRIPTOR
-    mov rax, SYSCALL_NUM_PRINT_STRING
-    syscall                                 ; print num string
-    cmp rdx, rax                            ; check syscall error
-je .ExitSuccess
-    mov rax, ERROR_SYSCALL
+    call PrintData
+    add rsp, rdx                            ; clean stack (rdx - size string)
+    test rax, rax                           ; check error
+jne .Exit
 
 .ExitSuccess:
-    add rsp, rdx                            ; clean stack (rdx - size string)
     xor rax, rax                            ; NO ERROR
+.Exit:
 ret
