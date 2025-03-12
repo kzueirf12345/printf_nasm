@@ -12,13 +12,17 @@ SYSCALL_NUM_PRINT_STRING    equ 0x1
 ERROR_INCORRECT_SPECIFER    equ 1
 ERROR_SYSCALL               equ 2
 
+;;; Variables
 
 HexTable                    db "0123456789ABCDEF"
 
-BUFFER_SIZE                 equ 100
+BUFFER_SIZE                 equ 10
 Buffer:                     db (BUFFER_SIZE) DUP (0)
 BUFFER_END                  equ $
 ;;; r10 - cur addr after last buffer elem
+
+CntPrintedSymbols:           dq 0
+
 
 ;;; =========================================FUNCS==================================================
 section .text
@@ -91,7 +95,8 @@ dq ('b'-'%'-1)  DUP (.SpeciferNothingPhone)
 dq .SpeciferB
 dq .SpeciferC
 dq .SpeciferD
-dq ('o'-'d'-1)  DUP (.SpeciferNothingPhone)
+dq ('n'-'d'-1)  DUP (.SpeciferNothingPhone)
+dq .SpeciferN 
 dq .SpeciferO
 dq ('s'-'o'-1)  DUP (.SpeciferNothingPhone)
 dq .SpeciferS
@@ -112,6 +117,7 @@ jmp .HandleString
 .ExitSuccess:
     call PrintBuffer
 .Exit:
+    mov qword [CntPrintedSymbols], 0
 ret
 
 
@@ -139,6 +145,16 @@ jne .Exit
 
     add r8, 8                               ; next arg
     pop rsi                                 ; save rsi
+    inc rsi                                 ; next symbol
+jmp .HandleString
+
+.SpeciferN:
+;;; mov count printed symbols in args addr
+    mov rcx, qword [CntPrintedSymbols]
+    mov r11, [r8]
+    mov [r11], rcx
+
+    add r8, 8                               ; next arg
     inc rsi                                 ; next symbol
 jmp .HandleString
 
@@ -222,6 +238,7 @@ jne .Exit
     mov rax, SYSCALL_NUM_PRINT_STRING
     mov rdi, STDOUT_DESCRIPTOR
     syscall                                 ; print rdx symbols in rsi
+    add qword [CntPrintedSymbols], rax      ; update CntPrintedSymbols
     cmp rdx, rax                            ; check syscall error
 jne .SyscallError
 
@@ -246,10 +263,12 @@ jmp .Exit
 PrintBuffer:
     mov rdx, r10                            ; rdx=r10-&Buffer - count symbols in buffer
     sub rdx, Buffer
+
     mov rsi, Buffer                         ; rsi - buffer addr
     mov rax, SYSCALL_NUM_PRINT_STRING
     mov rdi, STDOUT_DESCRIPTOR
     syscall                                 ; print symbols in buffer
+    add qword [CntPrintedSymbols], rax      ; update CntPrintedSymbols
     cmp rdx, rax                            ; check syscall error
 jne .SyscallError
 

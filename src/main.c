@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #define ERROR_HANDLE(call_func, ...)                                                                \
     do {                                                                                            \
@@ -19,13 +20,14 @@ int main()
     printf("This program print smth with asm func:\n");
 
 
-
-    ERROR_HANDLE(printme("0b%b;\n"
+    int64_t count = 0;
+    ERROR_HANDLE(printme("0b%b;123456789A%n\n"
                           "%c; %d; 0b%b; 0o%o; 0x%x; %%%%%%;\n"
                           "У %s small penis;\n", 
-                         -__LONG_MAX__+100, 'c', __LONG_MAX__, 3, 16, 0xBADDEDD1l,
+                         -__LONG_MAX__+100, &count, 'c', __LONG_MAX__, 3, 16, 0xBADDEDD1l,
                          "Стёпы Гизунова")
     );
+    ERROR_HANDLE(printme("count: %d\n", count););
 
     return EXIT_SUCCESS;
 }
