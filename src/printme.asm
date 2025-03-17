@@ -1,7 +1,9 @@
 section .data
+;;; //TODO double
 
 MAX_REG_VAL                 equ 0xFFFFFFFF
 END_STR                     equ 0x0
+SYS_CNT_BITS                equ 64
 
 STDOUT_DESCRIPTOR           equ 1
 
@@ -16,7 +18,7 @@ ERROR_SYSCALL               equ 2
 
 HexTable                    db "0123456789ABCDEF"
 
-BUFFER_SIZE                 equ 10
+BUFFER_SIZE                 equ 64
 Buffer:                     db (BUFFER_SIZE) DUP (0)
 BUFFER_END                  equ $
 ;;; r10 - cur addr after last buffer elem
@@ -63,9 +65,6 @@ ret
 ;;; Entry:      r8 = addr start args
 ;;;             rsi = format string
 ;;; Exit:       rax = exit code
-;;;             0 - success
-;;;             1 - error % specifer
-;;;             2 - syscall error
 ;;;             r8 = addr after last arg
 ;;; Destroy: 	rcx, rdx, rsi, rdi, r10, r11
 ;;; ---------------------------------------------
@@ -81,15 +80,18 @@ jne .NoSpecifer
 
     inc rsi                                 ; rsi - specifer symbol
 
-;;; rcx - addr to handle cur specifer = ([rsi]-'a')*8 + *SpeciferTable
+;;; rcx - addr to handle cur specifer = ([rsi]-'%')*8 + &SpeciferTable
     xor rcx, rcx
     mov cl, byte [rsi]
+    cmp rcx, 'x'
+jg .SpeciferNothingPhone
+    sub rcx, '%'
     shl rcx, 3
     add rcx, .SpeciferTable
+
 jmp [rcx]
 
 .SpeciferTable:
-dq ('%')        DUP (.SpeciferNothingPhone)
 dq .NoSpecifer                             ; handle %%
 dq ('b'-'%'-1)  DUP (.SpeciferNothingPhone)
 dq .SpeciferB
@@ -102,7 +104,6 @@ dq ('s'-'o'-1)  DUP (.SpeciferNothingPhone)
 dq .SpeciferS
 dq ('x'-'s'-1)  DUP (.SpeciferNothingPhone)
 dq .SpeciferX
-dq (256-'x')    DUP (.SpeciferNothingPhone)
 
 .NoSpecifer:
 
@@ -159,29 +160,36 @@ jmp .HandleString
 jmp .HandleString
 
 .SpeciferB:
-    mov r11, 2                              ; r11 - base
-    call SpeciferNum
+    mov r11b, 1                             ; r11b - log2(base)
+    call SpeciferNum2
     test rax, rax                           ; check error
 jne .Exit
 jmp .HandleString
     
 .SpeciferD:
+    push rsi                                ; save rsi
+
     mov r11, 10                             ; r11 - base
-    call SpeciferNum
+    mov rax, [r8]                           ; rax - num for print
+    call HandleNum
     test rax, rax                           ; check error
 jne .Exit
+
+    add r8, 8                               ; next arg
+    pop rsi                                 ; save rsi
+    inc rsi                                 ; next symbol
 jmp .HandleString
 
 .SpeciferO:
-    mov r11, 8                              ; r11 - base
-    call SpeciferNum
+    mov r11b, 3                             ; r11b - log2(base)
+    call SpeciferNum2
     test rax, rax                           ; check error
 jne .Exit
 jmp .HandleString
 
 .SpeciferX:
-    mov r11, 16                             ; r11 - base
-    call SpeciferNum
+    mov r11b, 4                             ; r11b - log2(base)
+    call SpeciferNum2
     test rax, rax                           ; check error
 jne .Exit
 jmp .HandleString
@@ -286,7 +294,7 @@ jmp .Exit
 
 ;;; ---------------------------------------------
 ;;; Descript:   print num
-;;; Entry:      r11 = base
+;;; Entry:      r11b = log2(base)
 ;;;             r8  = addr print num
 ;;;             rsi = cur addr in format string
 ;;; Exit:       rax = exit code
@@ -294,17 +302,27 @@ jmp .Exit
 ;;;             r8  = next arg
 ;;;             rsi = next symbol
 ;;;             r10 = addr after last buffer elem
-;;; Destroy: 	rcx, rdx, rdi, r11
+;;; Destroy: 	rcx, rdx, rdi, r9, r11
 ;;; ---------------------------------------------
-SpeciferNum:
+SpeciferNum2:
     push rsi                                ; save rsi
 
+    push r11
+    call PrintBuffer
+    test rax, rax
+jne .Exit
+    pop r11
+
     mov rax, [r8]                           ; rax - num for print
-    call HandleNum
+    call HandleNum2
 
     add r8, 8                               ; next arg
     pop rsi                                 ; save rsi
     inc rsi                                 ; next symbol
+
+.ExitSuccess:
+    xor rax, rax                            ; NO ERROR
+.Exit:
 ret
 
 ;;; ---------------------------------------------
@@ -369,8 +387,87 @@ jne .Exit
 ret
 
 ;;; ---------------------------------------------
+;;; Descript:   print num
+;;; Entry:      rax  = num
+;;;             r11b = log2(base)
+;;;             r10 = addr after last buffer elem
+;;; Exit:       rax = exit code
+;;;             r10 = addr after last buffer elem
+;;; Destroy: 	rcx, rdx, rsi, rdi, r9, r11
+;;; ---------------------------------------------
+HandleNum2:
+
+;;; check to zero
+    test rax, rax
+je .Zero
+
+    mov r9, rax                             ; r9 - duplicate num
+    xor dl, dl                              ; dl - offset counter
+
+.SkipZeros:
+    mov rax, r9                             ; rax - original num
+
+;;; rax << dl - remove left bytes
+    mov cl, dl
+    shl rax, cl
+
+;;; rax >> (64 - r11b) - remove right bytes
+    mov cl, 64
+    sub cl, r11b
+    shr rax, cl
+
+    add dl, r11b                            ; next offset
+
+    test rax, rax                           ; check to non zero
+je .SkipZeros
+
+    sub dl, r11b                            ; back to first non zero digit offset
+
+.Convertion
+    mov rax, r9                             ; rax - original num
+
+;;; rax << dl - remove left bytes
+    mov cl, dl
+    shl rax, cl
+
+;;; rax >> (64 - r11b) - remove right bytes
+    mov cl, 64
+    sub cl, r11b
+    shr rax, cl
+
+    mov al, byte [HexTable + rax]           ; al = HexTable[al]
+
+    mov byte [r10], al
+    inc r10
+
+    add dl, r11b                            ; next offset
+    cmp dl, 64                              ; check to max offset 64
+jl .Convertion
+
+.ExitSuccess:
+    xor rax, rax                            ; NO ERROR
+.Exit:
+ret
+
+.Zero:
+    push rax                                ; save num
+
+    dec rsp                                 ; push '0' (1 byte)
+    mov byte [rsp], '0'
+    mov rsi, rsp                            ; rsi - addr '0'
+    mov rdx, 1                              ; rdx - count printed sym
+    call PrintData
+    inc rsp                                 ; remove '-' from stack
+    test rax, rax                           ; check error
+jne .Exit
+
+    pop rax                                 ; save num
+jmp .ExitSuccess
+
+;;; ---------------------------------------------
 ;;; Descript:   print string (0 in end)
 ;;; Entry:      rdi = string addr
+;;;             r10 = addr after last buffer elem
 ;;; Exit:       rax = exit code
 ;;;             r10 = addr after last buffer elem
 ;;; Destroy: 	rcx, rdx, rsi, rdi, r11

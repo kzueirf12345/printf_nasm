@@ -23,11 +23,14 @@ int main()
     int64_t count = 0;
     ERROR_HANDLE(printme("0b%b;123456789A%n\n"
                           "%c; %d; 0b%b; 0o%o; 0x%x; %%%%%%;\n"
-                          "У %s small penis;\n", 
+                          "У %s small penis;\n"
+                          "%d %s %x %d%%%c%b\n", 
                          -__LONG_MAX__+100, &count, 'c', __LONG_MAX__, 3, 16, 0xBADDEDD1l,
-                         "Стёпы Гизунова")
+                         "Стёпы Гизунова",
+                         -1, "love", 3802, 100, 33, 127)
     );
     ERROR_HANDLE(printme("count: %d\n", count););
 
     return EXIT_SUCCESS;
 }
+
