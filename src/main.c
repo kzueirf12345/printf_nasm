@@ -13,7 +13,7 @@
         }                                                                                           \
     } while(0)
 
-extern int printme(const char* const format, ...);
+extern long printme(const char* const format, ...);
 
 int main()
 {
